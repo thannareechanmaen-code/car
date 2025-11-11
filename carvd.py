@@ -1,28 +1,32 @@
 from ultralytics import YOLO
+from cap_from_youtube import cap_from_youtube
 import cv2
+
+# 🔗 ลิงก์วิดีโอ YouTube
+youtube_url = "https://youtu.be/1sLcwlvM28M"
+
+# โหลดวิดีโอจาก YouTube (เลือกความละเอียดที่ดีที่สุด)
+cap = cap_from_youtube(youtube_url, resolution="best")
 
 # โหลดโมเดล YOLOv8 ที่เทรนไว้ล่วงหน้า
 model = YOLO('yolov8n.pt')
 
-# เปิดกล้องเว็บแคมหรือวิดีโอ (ใส่ path วิดีโอได้ เช่น "traffic.mp4")
-cap = cv2.VideoCapture(0)  # 0 คือกล้องเว็บแคมหลัก
-
-if not cap.isOpened():
-    print("❌ ไม่สามารถเปิดกล้องหรือวิดีโอได้")
-    exit()
-
 # ตั้งค่าการบันทึกวิดีโอผลลัพธ์
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-out = cv2.VideoWriter('output_car_detection.mp4', fourcc, 20.0,
-                      (int(cap.get(3)), int(cap.get(4))))
+out = None  # จะกำหนดขนาดหลังจากอ่านเฟรมแรกได้
 
 while True:
     ret, frame = cap.read()
     if not ret:
-        print("⚠️ ไม่สามารถอ่านเฟรมได้ หรือวิดีโอจบแล้ว")
+        print("⚠️ วิดีโอสิ้นสุด หรือไม่สามารถอ่านเฟรมได้")
         break
 
-    # ตรวจจับวัตถุ
+    # ถ้ายังไม่กำหนด out ให้กำหนดเมื่อรู้ขนาดภาพ
+    if out is None:
+        h, w = frame.shape[:2]
+        out = cv2.VideoWriter('output_car_detection.mp4', fourcc, 20.0, (w, h))
+
+    # ตรวจจับวัตถุด้วย YOLO
     results = model(frame, verbose=False)
 
     # นับจำนวนรถ
@@ -37,16 +41,19 @@ while True:
     cv2.putText(annotated, f'Cars detected: {car_count}', (20, 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
 
-    # แสดงผลและบันทึกลงไฟล์
-    cv2.imshow("Real-Time Car Detection", annotated)
+    # แสดงผลแบบเรียลไทม์
+    cv2.imshow("Real-Time Car Detection (YouTube)", annotated)
+
+    # บันทึกวิดีโอผลลัพธ์
     out.write(annotated)
 
-    # กด 'q' เพื่อหยุดการทำงาน
+    # กด 'q' เพื่อหยุด
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# ปิดการทำงานทั้งหมด
+# ปิดทั้งหมด
 cap.release()
-out.release()
+if out:
+    out.release()
 cv2.destroyAllWindows()
 print("✅ วิดีโอบันทึกไว้ที่: output_car_detection.mp4")
